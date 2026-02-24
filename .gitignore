@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/__pycache__/
+*.pyc
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Build artifacts and directories
+frontend/dist/
+frontend/build/
+backend/build/
+
+# Temp folders
+/tmp/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
