@@ -129,7 +129,31 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         }
     }
     
-    print(f"Prompting the model ({model_id}) with the video...")
+    # Define a strict JSON schema for the QC output
+    qc_response_schema = {
+        "type": "ARRAY",
+        "description": "A list of quality-checked and corrected hook scenes.",
+        "items": {
+            "type": "OBJECT",
+            "properties": {
+                "title": {"type": "STRING"},
+                "start_timestamp": {"type": "STRING", "description": "MM:SS format e.g., 01:23. Corrected if necessary."},
+                "end_timestamp": {"type": "STRING", "description": "MM:SS format e.g., 01:45. Corrected if necessary."},
+                "category": {"type": "STRING"},
+                "description": {"type": "STRING", "description": "Corrected description if necessary."},
+                "editing_justification": {"type": "STRING"},
+                "visuals_camera": {"type": "STRING"},
+                "audio_cues": {"type": "STRING"},
+                "pacing": {"type": "STRING"},
+                "repurposing_idea": {"type": "STRING"},
+                "edit_cut_notes": {"type": "STRING"},
+                "qc_reasoning": {"type": "STRING", "description": "Explanation of any corrections made (e.g. fixed timestamp discrepancy) or confirmation that the scene is accurate."},
+            },
+            "required": ["title", "start_timestamp", "end_timestamp", "category", "description", "editing_justification", "visuals_camera", "audio_cues", "pacing", "repurposing_idea", "edit_cut_notes", "qc_reasoning"]
+        }
+    }
+    
+    print(f"Prompting the model ({model_id}) with the video (Stage 1: Extraction)...")
     
     try:
         response = client.models.generate_content(
@@ -165,26 +189,70 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         error_msg = f"Gemini API Error: Failed to generate content. This may be due to a timeout, connection issue, or an invalid response. Details: {str(e)}"
         print(error_msg)
         raise Exception(error_msg)
+            
+    # Phase 1: Extract JSON strings from response
+    stage_1_json_text = response.text
     
-    # Cleanup remote files
-    #if uploaded_file:
-    #    try:
-    #        client.files.delete(name=uploaded_file.name)
-    #        print("Removed from Gemini storage.")
-    #    except Exception as e:
-    #        print(f"Failed to delete file from Gemini: {e}")
-    #elif gcs_bucket and blob:
-    #    try:
-    #        blob.delete()
-    #        print("Removed from GCS storage.")
-    #    except Exception as e:
-    #        print(f"Failed to delete file from GCS: {e}")
+    # Phase 2: QC Pass
+    print(f"Starting Stage 2: Quality Check with model ({model_id})...")
+    qc_prompt = f"""
+    Act as a strict Quality Control Editor. You will be provided with the exact video file and the draft list of extracted hook scenes generated in the previous step (provided below as JSON).
+    
+    Your job is to RE-WATCH the given video and VERIFY every single scene in the draft JSON.
+    
+    ### STRICT INSTRUCTIONS:
+    1. DO NOT INVENT NEW SCENES. You must only validate the scenes provided in the draft json.
+    2. CHECK TIMESTAMPS: Compare the start/end timestamps from the draft with the actual video. If they are slightly off or wildly incorrect, UPDATE them in your final output.
+    3. CHECK HALLUCINATIONS: Ensure the description, dialogue, and visuals actually happen in the video. If the draft halluncinated a detail, FIX the description.
+    4. ADD QC REASONING: For every scene, populate the new `qc_reasoning` field. State clearly if you modified the scene (e.g., "Corrected start time from 01:10 to 01:12 to match dialogue start") or if it was accurate (e.g., "Timestamp and description verified as accurate").
+    
+    ### DRAFT SCENES JSON:
+    {stage_1_json_text}
+    
+    Output the final, corrected JSON array containing ALL scenes from the draft, updated as necessary, matching the requested schema exactly.
+    """
+    
+    try:
+        qc_response = client.models.generate_content(
+            model=model_id,
+            contents=[video_part, qc_prompt],
+            config=types.GenerateContentConfig(
+               temperature = 0.5, # Lower temperature for QC to be more deterministic
+                top_p = 0.95,
+                max_output_tokens = 65535,
+                 safety_settings = [types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="OFF"
+                ),types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="OFF"
+                ),types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="OFF"
+                ),types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="OFF"
+                )],
+                thinking_config=types.ThinkingConfig(
+                    thinking_level="HIGH",
+                ),
+                media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
+                audio_timestamp=True,
+                response_mime_type="application/json",
+                response_schema=qc_response_schema
+            )
+        )
+    except Exception as e:
+         error_msg = f"Gemini API Error (Stage 2 QC): {str(e)}"
+         print(error_msg)
+         raise Exception(error_msg)
+
             
     # Parse results
     try:
-         result_json = json.loads(response.text)
+         result_json = json.loads(qc_response.text)
          return result_json
     except json.JSONDecodeError:
         print("Failed to decode JSON from Gemini response. Raw response:")
-        print(response.text)
-        return {"raw": response.text}
+        print(qc_response.text) # Changed to qc_response.text
+        return {"raw": qc_response.text} # Changed to qc_response.text

@@ -371,6 +371,15 @@ function App() {
                               </div>
                             </div>
                           )}
+                          {scene.qc_reasoning && (
+                            <div className="metadata-item" style={{ gridColumn: '1 / -1', background: 'rgba(46, 204, 113, 0.1)', borderLeft: '3px solid #2ecc71' }}>
+                              <div className="metadata-icon" style={{ color: '#2ecc71' }}><CheckCircle2 size={20} /></div>
+                              <div className="metadata-content">
+                                <span className="metadata-label" style={{ color: '#2ecc71' }}>QC Validation</span>
+                                <span className="metadata-value">{scene.qc_reasoning}</span>
+                              </div>
+                            </div>
+                          )}
                           {scene.audio_cues && (
                             <div className="metadata-item">
                               <div className="metadata-icon"><Music size={20} /></div>
