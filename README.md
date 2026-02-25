@@ -27,7 +27,26 @@ The project follows a decoupled monorepo structure:
    gcloud auth application-default login
    ```
 
-### 1. Backend Setup
+### Quick Start (Using Make)
+The easiest way to set up and run the application is to use the `Makefile` located in the root directory.
+
+1. **Install dependencies** (Backend & Frontend):
+   ```bash
+   make setup
+   ```
+2. **Start the application** (Runs both servers concurrently):
+   ```bash
+   make run
+   ```
+
+*To clean the environment (removes `node_modules` and `venv`), run `make clean`.*
+
+### Manual Setup
+
+<details>
+<summary>Click here for step-by-step manual setup</summary>
+
+#### 1. Backend Setup
 Navigate to the backend directory and install the required dependencies:
 ```bash
 cd backend
@@ -47,13 +66,15 @@ Start the FastAPI server:
 uvicorn main:app --reload
 ```
 
-### 2. Frontend Setup
+#### 2. Frontend Setup
 Open a new terminal, navigate to the frontend directory, and start the development server:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+</details>
 
 ### 3. Usage
 - Open `http://localhost:5173` in your browser.
