@@ -162,20 +162,6 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         error_msg = f"Gemini API Error: Failed to generate content. This may be due to a timeout, connection issue, or an invalid response. Details: {str(e)}"
         print(error_msg)
         raise Exception(error_msg)
-    
-    # Cleanup remote files
-    #if uploaded_file:
-    #    try:
-    #        client.files.delete(name=uploaded_file.name)
-    #        print("Removed from Gemini storage.")
-    #    except Exception as e:
-    #        print(f"Failed to delete file from Gemini: {e}")
-    #elif gcs_bucket and blob:
-    #    try:
-    #        blob.delete()
-    #        print("Removed from GCS storage.")
-    #    except Exception as e:
-    #        print(f"Failed to delete file from GCS: {e}")
             
     # Parse results
     try:
