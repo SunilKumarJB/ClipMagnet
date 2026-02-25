@@ -81,6 +81,8 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
     - Emotional / Profound (Vulnerability, drama, or deep insights)
     - Controversial / Hot Take (Strong opinions or pattern-interrupting statements)
     - Core Information (The essential "meat" of the video's value proposition)
+    - Any other category that you think is a hook or key scene for retention specific for platform like youtube, instagram, tiktok, etc.
+
 
     ### 2. REQUIRED METADATA & OUTPUT FORMAT
     For every single hook or key scene you identify, use the following metadata list that needs to be extracted:
@@ -93,16 +95,15 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
     *   **Visuals & Camera:** [Describe framing, movement, lighting, or key visual elements—e.g., "Fast pan to medium close-up," "Static wide shot," "Subject breaks eye contact"]
     *   **Audio & Cues:** [Quote the exact impactful dialogue. Note shifts in music, sound effects, or vocal tone—e.g., "Voice drops to a whisper," "Sudden loud noise"]
     *   **Pacing & Energy:** [e.g., Frenetic, Slow-burn, High-energy, Deadpan]
-    *   **Repurposing Idea:** [Where this clip belongs—e.g., YouTube Shorts, Video Intro Teaser, B-roll overlay]
-
-    ---
+    *   **Repurposing Idea:** [Where this clip belongs—e.g., YouTube Shorts, Video Intro Teaser, B-roll overlay, Instagram Reels, TikTok]
+    *   **Edit/Cut Notes:** [Instructions on what to remove (e.g., dead air, filler words), what music/SFX to add, and how the clip should start/end (e.g., seamless loop, hard cut).]
 
     ### 3. STRICT PROCESSING CONSTRAINTS (CRITICAL)
-    1. Segment your mental processing. Evaluate the video chronologically to ensure you do not miss hidden hooks in the middle or end of the video.
-    2. Ensure highly precise timestamps. 
+    1. Segment your mental processing and planning. Evaluate the video chronologically to ensure you do not miss hidden hooks in the middle or end of the video.
+    2. Ensure highly precise timestamps and revalidate it before sending it to the user as final response.
     3. Print the text `[END OF VIDEO REACHED: MM:SS]` at the very bottom of your response to confirm you have successfully analyzed the file to the final second.
 
-    Begin your chronological analysis now.
+    Begin your chronological analysis now. Unmistakably, make sure to recheck the response and its timestamps alignment with video before sending it to the user as final response.
     """
     
     # We define a strict JSON schema for the output
@@ -121,8 +122,10 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
                 "visuals_camera": {"type": "STRING", "description": "Notes on camera movement and framing."},
                 "audio_cues": {"type": "STRING", "description": "Key dialogue or sound notes."},
                 "pacing": {"type": "STRING", "description": "Energy level or pacing notes."},
+                "repurposing_idea": {"type": "STRING", "description": "Where this clip belongs—e.g., YouTube Shorts, Video Intro Teaser, B-roll overlay, Instagram Reels, TikTok"},
+                "edit_cut_notes": {"type": "STRING", "description": "Instructions on what to remove (e.g., dead air, filler words), what music/SFX to add, and how the clip should start/end (e.g., seamless loop, hard cut)."},
             },
-            "required": ["title", "start_timestamp", "end_timestamp", "category", "description", "editing_justification", "visuals_camera", "audio_cues", "pacing"]
+            "required": ["title", "start_timestamp", "end_timestamp", "category", "description", "editing_justification", "visuals_camera", "audio_cues", "pacing", "repurposing_idea", "edit_cut_notes"]
         }
     }
     
@@ -162,6 +165,20 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         error_msg = f"Gemini API Error: Failed to generate content. This may be due to a timeout, connection issue, or an invalid response. Details: {str(e)}"
         print(error_msg)
         raise Exception(error_msg)
+    
+    # Cleanup remote files
+    #if uploaded_file:
+    #    try:
+    #        client.files.delete(name=uploaded_file.name)
+    #        print("Removed from Gemini storage.")
+    #    except Exception as e:
+    #        print(f"Failed to delete file from Gemini: {e}")
+    #elif gcs_bucket and blob:
+    #    try:
+    #        blob.delete()
+    #        print("Removed from GCS storage.")
+    #    except Exception as e:
+    #        print(f"Failed to delete file from GCS: {e}")
             
     # Parse results
     try:

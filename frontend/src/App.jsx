@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Settings, UploadCloud, Film, Play, X, CheckCircle2, Camera, Music, Activity, Lightbulb, PlayCircle, Sun, Moon } from 'lucide-react';
+import { Settings, UploadCloud, Film, Play, X, CheckCircle2, Camera, Music, Activity, Lightbulb, PlayCircle, Sun, Moon, Share2, Scissors } from 'lucide-react';
 import './index.css';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -333,8 +333,26 @@ function App() {
                       </div>
 
                       {/* Render Editor Metadata in a nice grid */}
-                      {(scene.editing_justification || scene.visuals_camera || scene.audio_cues || scene.pacing) && (
+                      {(scene.editing_justification || scene.visuals_camera || scene.audio_cues || scene.pacing || scene.repurposing_idea || scene.edit_cut_notes) && (
                         <div className="metadata-grid">
+                          {scene.repurposing_idea && (
+                            <div className="metadata-item">
+                              <div className="metadata-icon"><Share2 size={20} /></div>
+                              <div className="metadata-content">
+                                <span className="metadata-label">Repurposing Idea</span>
+                                <span className="metadata-value">{scene.repurposing_idea}</span>
+                              </div>
+                            </div>
+                          )}
+                          {scene.edit_cut_notes && (
+                            <div className="metadata-item">
+                              <div className="metadata-icon"><Scissors size={20} /></div>
+                              <div className="metadata-content">
+                                <span className="metadata-label">Edit/Cut Notes</span>
+                                <span className="metadata-value">{scene.edit_cut_notes}</span>
+                              </div>
+                            </div>
+                          )}
                           {scene.editing_justification && (
                             <div className="metadata-item">
                               <div className="metadata-icon"><Lightbulb size={20} /></div>
