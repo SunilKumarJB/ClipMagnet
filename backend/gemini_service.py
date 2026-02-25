@@ -14,15 +14,18 @@ def get_client() -> genai.Client:
         
     return genai.Client()
 
-async def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: str = None):
+async def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: str = None, youtube_url: str = None):
     """
-    Upload the video to Gemini or GCS and prompt for hook scene extraction.
+    Upload the video to Gemini or GCS (or process YouTube URL directly) and prompt for hook scene extraction.
     """
     client = get_client()
     uploaded_file = None
     blob = None
     
-    if gcs_bucket:
+    if youtube_url:
+        print(f"Using YouTube URI directly: {youtube_url}")
+        video_part = types.Part.from_uri(file_uri=youtube_url, mime_type=mime_type)
+    elif gcs_bucket and video_path:
         # Use Google Cloud Storage
         from google.cloud import storage
         print(f"Uploading file {video_path} to gs://{gcs_bucket}...")
@@ -149,8 +152,10 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
                 thinking_config=types.ThinkingConfig(
                     thinking_level="HIGH",
                 ),
-               response_mime_type="application/json",
-               response_schema=response_schema
+                media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
+                audio_timestamp=True,
+                response_mime_type="application/json",
+                response_schema=response_schema
             )
         )
     except Exception as e:

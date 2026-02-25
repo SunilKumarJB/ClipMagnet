@@ -45,7 +45,8 @@ async def get_config():
 
 @app.post("/api/extract", response_model=ExtractionResult)
 async def extract_scenes(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    youtube_url: str | None = Form(None),
     model_id: str | None = Form(None),
     gcs_bucket: str | None = Form(None)
 ):
@@ -56,25 +57,30 @@ async def extract_scenes(
     if not gcs_bucket:
         gcs_bucket = os.getenv("GCS_BUCKET")
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
+    if not file and not youtube_url:
+        raise HTTPException(status_code=400, detail="No file or YouTube URL provided")
     
-    # Save the file temporarily
-    file_id = str(uuid.uuid4())
-    temp_file_path = os.path.join(TEMP_DIR, f"{file_id}_{file.filename}")
-    
+    temp_file_path = None
     try:
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        print(f"File saved to {temp_file_path}, processing with model {model_id}...")
+        # Save the file temporarily if provided
+        if file and file.filename:
+            file_id = str(uuid.uuid4())
+            temp_file_path = os.path.join(TEMP_DIR, f"{file_id}_{file.filename}")
+            with open(temp_file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            print(f"File saved to {temp_file_path}, processing with model {model_id}...")
+            mime_type = file.content_type
+        else:
+            print(f"Using YouTube URL {youtube_url}, processing with model {model_id}...")
+            mime_type = "video/mp4" # Default for YouTube
         
         # Call the Gemini Service to process the video
         scenes_data = await gemini_service.process_video(
             video_path=temp_file_path,
-            mime_type=file.content_type,
+            mime_type=mime_type,
             model_id=model_id,
-            gcs_bucket=gcs_bucket
+            gcs_bucket=gcs_bucket,
+            youtube_url=youtube_url
         )
         
         return ExtractionResult(status="success", message="Extraction complete", scenes=scenes_data)
@@ -84,7 +90,7 @@ async def extract_scenes(
         raise HTTPException(status_code=500, detail=f"Error processing video: {str(e)}")
     finally:
         # Cleanup
-        if os.path.exists(temp_file_path):
+        if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
             
 @app.get("/")

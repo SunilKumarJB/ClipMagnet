@@ -8,6 +8,8 @@ const API_BASE_URL = 'http://localhost:8000/api';
 function App() {
   const [file, setFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
+  const [uploadMode, setUploadMode] = useState('file');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [modelId, setModelId] = useState('gemini-3-pro-preview');
   const [gcsBucket, setGcsBucket] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -57,14 +59,19 @@ function App() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (uploadMode === 'file' && !file) return;
+    if (uploadMode === 'url' && !youtubeUrl) return;
 
     setIsProcessing(true);
     setError(null);
     setResults(null);
 
     const formData = new FormData();
-    formData.append('file', file);
+    if (uploadMode === 'file') {
+      formData.append('file', file);
+    } else {
+      formData.append('youtube_url', youtubeUrl);
+    }
     formData.append('model_id', modelId);
     if (gcsBucket) formData.append('gcs_bucket', gcsBucket);
 
@@ -84,6 +91,13 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const getYouTubeEmbedUrl = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : null;
   };
 
   const getCategoryTheme = (catStr) => {
@@ -140,40 +154,86 @@ function App() {
 
       <main className="main-content">
         {!isProcessing && !results && (
-          <div
-            className="glass-panel uploader-area"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={triggerFileInput}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              accept="video/*"
-              onChange={handleFileChange}
-            />
-            <div className="upload-icon-wrapper">
-              <UploadCloud size={40} />
-            </div>
-            <div className="upload-text">
-              <h3>Upload Video</h3>
-              <p>Drag and drop a video file here, or click to browse</p>
+          <div className="upload-container">
+            <div className="upload-tabs">
+              <button
+                className={`tab-btn ${uploadMode === 'file' ? 'active' : ''}`}
+                onClick={() => setUploadMode('file')}
+              >
+                Local File
+              </button>
+              <button
+                className={`tab-btn ${uploadMode === 'url' ? 'active' : ''}`}
+                onClick={() => setUploadMode('url')}
+              >
+                YouTube Link
+              </button>
             </div>
 
-            {file && (
-              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                <div style={{ color: '#4285f4', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={18} />
-                  {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+            {uploadMode === 'file' ? (
+              <div
+                className="glass-panel uploader-area"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={triggerFileInput}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  accept="video/*"
+                  onChange={handleFileChange}
+                />
+                <div className="upload-icon-wrapper">
+                  <UploadCloud size={40} />
                 </div>
-                <button
-                  className="glass-button primary-button"
-                  onClick={(e) => { e.stopPropagation(); handleUpload(); }}
-                >
-                  <Play size={18} /> Extract Hook Scenes
-                </button>
+                <div className="upload-text">
+                  <h3>Upload Video</h3>
+                  <p>Drag and drop a video file here, or click to browse</p>
+                </div>
+
+                {file && (
+                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ color: '#4285f4', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CheckCircle2 size={18} />
+                      {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                    </div>
+                    <button
+                      className="glass-button primary-button"
+                      onClick={(e) => { e.stopPropagation(); handleUpload(); }}
+                    >
+                      <Play size={18} /> Extract Hook Scenes
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="glass-panel uploader-area" style={{ cursor: 'default' }}>
+                <div className="upload-icon-wrapper">
+                  <PlayCircle size={40} />
+                </div>
+                <div className="upload-text">
+                  <h3>Paste YouTube URL</h3>
+                  <p>Enter a public YouTube video link for Gemini to analyze</p>
+                </div>
+                <div style={{ marginTop: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px', margin: '20px auto 0 auto' }}>
+                  <input
+                    type="text"
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="custom-input"
+                  />
+                  <button
+                    className="glass-button primary-button"
+                    onClick={handleUpload}
+                    disabled={!youtubeUrl}
+                    style={{ opacity: youtubeUrl ? 1 : 0.5 }}
+                  >
+                    <Play size={18} /> Extract Hook Scenes
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -198,7 +258,7 @@ function App() {
         {results && (
           <div className="results-layout">
             <div className="video-sticky-container">
-              {videoUrl ? (
+              {uploadMode === 'file' && videoUrl ? (
                 <div className="video-wrapper">
                   <video
                     ref={videoRef}
@@ -207,6 +267,19 @@ function App() {
                     controls
                     playsInline
                   />
+                </div>
+              ) : uploadMode === 'url' && youtubeUrl && getYouTubeEmbedUrl(youtubeUrl) ? (
+                <div className="video-wrapper" style={{ aspectRatio: '16/9' }}>
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={getYouTubeEmbedUrl(youtubeUrl)}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    style={{ borderRadius: 'var(--radius-lg)' }}
+                  ></iframe>
                 </div>
               ) : (
                 <div className="glass-panel" style={{ padding: '24px', textAlign: 'center' }}>
@@ -338,17 +411,7 @@ function App() {
                 value={gcsBucket}
                 onChange={(e) => setGcsBucket(e.target.value)}
                 placeholder="e.g. my-video-bucket"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  background: 'rgba(0,0,0,0.2)',
-                  border: '1px solid var(--border-color)',
-                  color: '#fff',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '16px',
-                  outline: 'none',
-                  transition: 'var(--transition)'
-                }}
+                className="custom-input"
               />
             </div>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
