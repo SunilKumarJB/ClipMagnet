@@ -7,11 +7,17 @@ import uuid
 from dotenv import load_dotenv
 
 load_dotenv() # Load variables from .env file
+import traceback
+
+load_dotenv() # Load variables from .env file
 
 # We will import our gemini service later
 import gemini_service
 
 app = FastAPI(title="Hook Scene Extractor API")
+
+# Simple in-memory dict to track job progress
+job_statuses = {}
 
 # Setup CORS for the Vite React frontend
 app.add_middleware(
@@ -43,12 +49,20 @@ async def get_config():
         "default_model": "gemini-3-pro-preview"
     }
 
+@app.get("/api/status/{job_id}")
+async def get_job_status(job_id: str):
+    if job_id not in job_statuses:
+        # Default to a generic processing state if not explicitly tracked yet
+        return {"stage": "initializing", "message": "Preparing to process..."}
+    return job_statuses[job_id]
+
 @app.post("/api/extract", response_model=ExtractionResult)
-async def extract_scenes(
+def extract_scenes(
     file: UploadFile | None = File(None),
     youtube_url: str | None = Form(None),
     model_id: str | None = Form(None),
-    gcs_bucket: str | None = Form(None)
+    gcs_bucket: str | None = Form(None),
+    job_id: str | None = Form(None)
 ):
     # Fallback to defaults from .env if not provided by frontend
     if not model_id:
@@ -60,12 +74,22 @@ async def extract_scenes(
     if not file and not youtube_url:
         raise HTTPException(status_code=400, detail="No file or YouTube URL provided")
     
+    if job_id:
+        if file and file.filename:
+            job_statuses[job_id] = {"stage": "uploading", "message": "Saving file locally..."}
+        else:
+            job_statuses[job_id] = {"stage": "analyzing", "message": "Preparing YouTube extraction..."}
+    
+    def status_callback(stage: str, message: str):
+        if job_id:
+            job_statuses[job_id] = {"stage": stage, "message": message}
+            
     temp_file_path = None
     try:
         # Save the file temporarily if provided
         if file and file.filename:
-            file_id = str(uuid.uuid4())
-            temp_file_path = os.path.join(TEMP_DIR, f"{file_id}_{file.filename}")
+            temp_file_id = str(uuid.uuid4()) 
+            temp_file_path = os.path.join(TEMP_DIR, f"{temp_file_id}_{file.filename}")
             with open(temp_file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             print(f"File saved to {temp_file_path}, processing with model {model_id}...")
@@ -75,18 +99,25 @@ async def extract_scenes(
             mime_type = "video/mp4" # Default for YouTube
         
         # Call the Gemini Service to process the video
-        scenes_data = await gemini_service.process_video(
+        scenes_data = gemini_service.process_video(
             video_path=temp_file_path,
             mime_type=mime_type,
             model_id=model_id,
             gcs_bucket=gcs_bucket,
-            youtube_url=youtube_url
+            youtube_url=youtube_url,
+            job_id=job_id,
+            status_callback=status_callback
         )
         
+        if job_id:
+            job_statuses[job_id] = {"stage": "complete", "message": "Extraction successful."}
+            
         return ExtractionResult(status="success", message="Extraction complete", scenes=scenes_data)
         
     except Exception as e:
         print(f"Error processing video: {str(e)}")
+        if job_id:
+            job_statuses[job_id] = {"stage": "error", "message": f"Error: {str(e)}"}
         raise HTTPException(status_code=500, detail=f"Error processing video: {str(e)}")
     finally:
         # Cleanup

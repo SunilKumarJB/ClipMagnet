@@ -14,6 +14,9 @@ function App() {
   const [gcsBucket, setGcsBucket] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [jobId, setJobId] = useState(null);
+  const [jobStage, setJobStage] = useState('initializing');
+  const [jobMessage, setJobMessage] = useState('Preparing...');
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
@@ -22,6 +25,29 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Polling logic for job status
+  useEffect(() => {
+    let intervalId;
+    if (isProcessing && jobId) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/status/${jobId}`);
+          if (res.data) {
+            setJobStage(res.data.stage);
+            setJobMessage(res.data.message);
+            // If it's complete or error, we could optionally handle it here, 
+            // but the main POST request will also resolve and update state.
+          }
+        } catch (err) {
+          console.error("Failed to poll status", err);
+        }
+      }, 2000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isProcessing, jobId]);
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -65,6 +91,12 @@ function App() {
     setIsProcessing(true);
     setError(null);
     setResults(null);
+    setJobStage('initializing');
+    setJobMessage('Preparing...');
+
+    // Generate a simple unique ID for this job
+    const newJobId = Math.random().toString(36).substring(2, 15);
+    setJobId(newJobId);
 
     const formData = new FormData();
     if (uploadMode === 'file') {
@@ -74,6 +106,7 @@ function App() {
     }
     formData.append('model_id', modelId);
     if (gcsBucket) formData.append('gcs_bucket', gcsBucket);
+    formData.append('job_id', newJobId);
 
     try {
       const response = await axios.post(`${API_BASE_URL}/extract`, formData, {
@@ -81,6 +114,8 @@ function App() {
           'Content-Type': 'multipart/form-data',
         },
       });
+      setJobStage('complete');
+      setJobMessage('Extraction complete.');
       setResults(response.data.scenes);
     } catch (err) {
       let msg = 'Failed to process video.';
@@ -88,8 +123,10 @@ function App() {
         msg = err.response.data.detail;
       }
       setError(msg);
+      setJobStage('error');
     } finally {
       setIsProcessing(false);
+      setJobId(null);
     }
   };
 
@@ -125,6 +162,30 @@ function App() {
     } catch (err) {
       console.error("Failed to parse time:", timeStr);
     }
+  };
+
+  const getUploadClass = () => {
+    if (['analyzing', 'qc', 'complete'].includes(jobStage)) return 'active completed';
+    if (['initializing', 'uploading', 'uploading_gcs', 'uploading_gemini'].includes(jobStage)) return 'active processing';
+    return '';
+  };
+
+  const getExtClass = () => {
+    if (['qc', 'complete'].includes(jobStage)) return 'active completed';
+    if (jobStage === 'analyzing' || (jobStage === 'initializing' && uploadMode === 'url')) return 'active processing';
+    return '';
+  };
+
+  const getQcClass = () => {
+    if (jobStage === 'complete') return 'active completed';
+    if (jobStage === 'qc') return 'active processing';
+    return '';
+  };
+
+  const getLineClass = (stageNum) => {
+    if (stageNum === 1 && ['analyzing', 'qc', 'complete'].includes(jobStage)) return 'active';
+    if (stageNum === 2 && ['qc', 'complete'].includes(jobStage)) return 'active';
+    return '';
   };
 
   return (
@@ -241,9 +302,43 @@ function App() {
 
         {isProcessing && (
           <div className="glass-panel status-container">
-            <div className="spinner"></div>
-            <h3>Processing with {modelId}...</h3>
-            <p style={{ color: 'var(--text-secondary)' }}>Gemini is analyzing the video to extract key moments. This may take a few minutes for larger files.</p>
+            <h3>Processing Video with {modelId}</h3>
+
+            <div className="progress-tracker">
+              {/* Step 1: Uploading */}
+              {uploadMode === 'file' && (
+                <>
+                  <div className={`progress-step ${getUploadClass()}`}>
+                    <div className="step-icon">
+                      {getUploadClass().includes('completed') ? <CheckCircle2 size={24} /> : <UploadCloud size={24} />}
+                    </div>
+                    <div className="step-label">Uploading</div>
+                  </div>
+
+                  <div className={`progress-line ${getLineClass(1)}`}><div className="line-fill"></div></div>
+                </>
+              )}
+
+              {/* Step 2: Extraction */}
+              <div className={`progress-step ${getExtClass()}`}>
+                <div className="step-icon">
+                  {getExtClass().includes('completed') ? <CheckCircle2 size={24} /> : <Film size={24} />}
+                </div>
+                <div className="step-label">AI Extraction</div>
+              </div>
+
+              <div className={`progress-line ${getLineClass(2)}`}><div className="line-fill"></div></div>
+
+              {/* Step 3: Quality Check */}
+              <div className={`progress-step ${getQcClass()}`}>
+                <div className="step-icon">
+                  {getQcClass().includes('completed') ? <CheckCircle2 size={24} /> : <Activity size={24} />}
+                </div>
+                <div className="step-label">Quality Check</div>
+              </div>
+            </div>
+
+            <p className="status-message">{jobMessage}</p>
           </div>
         )}
 

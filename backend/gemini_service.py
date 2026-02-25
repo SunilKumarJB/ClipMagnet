@@ -14,10 +14,26 @@ def get_client() -> genai.Client:
         
     return genai.Client()
 
-async def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: str = None, youtube_url: str = None):
+LOGS_DIR = "/tmp/hook_scene_extractor_logs"
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: str = None, youtube_url: str = None, job_id: str = None, status_callback=None):
     """
     Upload the video to Gemini or GCS (or process YouTube URL directly) and prompt for hook scene extraction.
     """
+    
+    def log_to_file(title: str, content: str):
+        if not job_id:
+            return
+        log_file_path = os.path.join(LOGS_DIR, f"{job_id}_process.log")
+        try:
+            with open(log_file_path, "a") as f:
+                f.write(f"\n{'='*20}\n{title}\n{'='*20}\n")
+                f.write(content)
+                f.write("\n")
+        except Exception as e:
+            print(f"Failed to write to log file: {e}")
+            
     client = get_client()
     uploaded_file = None
     blob = None
@@ -26,6 +42,8 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         print(f"Using YouTube URI directly: {youtube_url}")
         video_part = types.Part.from_uri(file_uri=youtube_url, mime_type=mime_type)
     elif gcs_bucket and video_path:
+        if status_callback:
+            status_callback("uploading_gcs", "Uploading video to Google Cloud Storage...")
         # Use Google Cloud Storage
         from google.cloud import storage
         print(f"Uploading file {video_path} to gs://{gcs_bucket}...")
@@ -42,6 +60,8 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         video_part = types.Part.from_uri(file_uri=gcs_uri, mime_type=mime_type)
         
     else:
+        if status_callback:
+            status_callback("uploading_gemini", "Uploading video to Gemini API...")
         # Fallback: Upload the file using the genai interface
         print(f"Uploading file {video_path} to Gemini Files API...")
         uploaded_file = client.files.upload(file=video_path, config={'mime_type': mime_type})
@@ -153,7 +173,11 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
         }
     }
     
+    if status_callback:
+        status_callback("analyzing", "Extracting initial scenes with Gemini AI...")
+    
     print(f"Prompting the model ({model_id}) with the video (Stage 1: Extraction)...")
+    log_to_file("STAGE 1 - EXTRACTION PROMPT", prompt)
     
     try:
         response = client.models.generate_content(
@@ -192,8 +216,12 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
             
     # Phase 1: Extract JSON strings from response
     stage_1_json_text = response.text
+    log_to_file("STAGE 1 - RAW RESPONSE", stage_1_json_text)
     
     # Phase 2: QC Pass
+    if status_callback:
+        status_callback("qc", "Running quality control pass to verify timestamps and content...")
+    
     print(f"Starting Stage 2: Quality Check with model ({model_id})...")
     qc_prompt = f"""
     Act as a strict Quality Control Editor. You will be provided with the exact video file and the draft list of extracted hook scenes generated in the previous step (provided below as JSON).
@@ -211,6 +239,7 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
     
     Output the final, corrected JSON array containing ALL scenes from the draft, updated as necessary, matching the requested schema exactly.
     """
+    log_to_file("STAGE 2 - QC PROMPT", qc_prompt)
     
     try:
         qc_response = client.models.generate_content(
@@ -247,6 +276,8 @@ async def process_video(video_path: str, mime_type: str, model_id: str, gcs_buck
          print(error_msg)
          raise Exception(error_msg)
 
+    # Log the final QC output text
+    log_to_file("STAGE 2 - QC RAW RESPONSE", qc_response.text)
             
     # Parse results
     try:
