@@ -4,6 +4,8 @@ ClipMagnet is a modern, visually stunning web application that leverages the pow
 
 Designed specifically for Video Editors and Content Strategists, ClipMagnet identifies high-tension, comedic, action-packed, or highly informative moments, drastically reducing the time required to scour footage for repurposing.
 
+> **Disclaimer:** This project is a use case demonstration for Gemini. It is experimental and **NOT** an official Google product. It does not reflect the official products or policies of Google or Google Cloud. This repository contains personal experiments built using open documentation and APIs on publicly available materials.
+
 ## ✨ Features
 - **Intelligent Hook Extraction:** Analyzes entire videos chronologically to find retention-spiking moments.
 - **Detailed Editor Metadata:** Extracts timestamps, scene descriptions, editing justifications, pacing/energy levels, and audio/visual cues for every hook.
