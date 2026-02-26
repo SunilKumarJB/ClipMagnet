@@ -1,101 +1,262 @@
-# ClipMagnet 🎬🧲
+<div align="center">
 
-ClipMagnet is a modern, visually stunning web application that leverages the power of Google Cloud's **Vertex AI Gemini 3.0** models to analyze long videos and automatically extract key "hook" scenes. 
+# ClipMagnet
 
-Designed specifically for Video Editors and Content Strategists, ClipMagnet identifies high-tension, comedic, action-packed, or highly informative moments, drastically reducing the time required to scour footage for repurposing.
+**AI-powered video hook extractor.**
+Drop a video in, get every viral moment out.
 
-> **Disclaimer:** This project is a use case demonstration for Gemini. It is experimental and **NOT** an official Google product. It does not reflect the official products or policies of Google or Google Cloud. This repository contains personal experiments built using open documentation and APIs on publicly available materials.
+Built with [Gemini 3 Pro](https://ai.google.dev/) &nbsp;·&nbsp; [FastAPI](https://fastapi.tiangolo.com/) &nbsp;·&nbsp; [React](https://react.dev/)
 
-## ✨ Features
-- **Intelligent Hook Extraction:** Analyzes entire videos chronologically to find retention-spiking moments.
-- **Detailed Editor Metadata:** Extracts timestamps, scene descriptions, editing justifications, pacing/energy levels, and audio/visual cues for every hook.
-- **Configurable AI Models:** Easily switch between different Vertex AI Gemini models (e.g., `gemini-3.0-pro`, `gemini-3.0-flash`) directly from the UI.
-- **GCS Integration:** Upload files directly to a Google Cloud Storage bucket for robust enterprise processing.
-- **Premium Glassmorphic UI:** A sleek, responsive React interface complete with smooth animations, interactive timestamp seeking, and dynamic Light/Dark mode.
-- **Embedded Local Preview:** Instantly watch and seek to the extracted scenes using a fast local video URL implementation.
+</div>
 
-## 🏗️ Architecture
-The project follows a decoupled monorepo structure:
-- **`/frontend`**: A React application built with Vite and vanilla CSS. Handles the drag-and-drop UI and video rendering.
-- **`/backend`**: A FastAPI Python application. Orchestrates video uploads and communicates with Vertex AI using the latest `google-genai` SDK.
+---
 
-### Workflow
-![Workflow](asset/clipmagnet_workflow.png)
+ClipMagnet analyzes long-form videos and automatically surfaces high-retention "hook" scenes — the viral-worthy moments that matter most to content editors and strategists. It runs a **two-stage Gemini AI pipeline**: Stage 1 creatively extracts every hook moment; Stage 2 re-watches the video and QC-validates every timestamp.
 
-## 🚀 Getting Started
+Supports **Vertex AI** (Google Cloud ADC) and the **Gemini Developer API** — switch between them with a single env variable.
 
-### Prerequisites
-1. **Python 3.9+** and **Node.js (npm)** installed.
-2. A **Google Cloud Project** with the Vertex AI API enabled.
-3. Authenticate your local environment with Google Cloud Application Default Credentials (ADC):
-   ```bash
-   gcloud auth application-default login
-   ```
+<br>
 
-### Quick Start (Using Make)
-The easiest way to set up and run the application is to use the `Makefile` located in the root directory.
+## How It Works
 
-1. **Install dependencies** (Backend & Frontend):
-   ```bash
-   make setup
-   ```
-2. **Start the application** (Runs both servers concurrently):
-   ```bash
-   make run
-   ```
+<div align="center">
 
-*To clean the environment (removes `node_modules` and `venv`), run `make clean`.*
+<img src="asset/workflow.webp" alt="ClipMagnet User Workflow" width="720">
 
-### Manual Setup
+</div>
+
+<br>
+
+| Step | What Happens |
+|:--|:--|
+| **1. Open App** | Visit `localhost:5173` in your browser |
+| **2. Configure** | Click ⚙ Config — select Gemini model, optionally set a GCS bucket for large files |
+| **3. Choose Input** | Drag & drop a video file **or** paste a YouTube URL |
+| **4. Extract** | Click **Extract Hook Scenes** — Gemini starts analyzing your full video |
+| **5. Processing** | Live progress tracker: Uploading → AI Extraction → QC Review (typically 2–5 min) |
+| **6. Review Scenes** | Browse hook scene cards with full editor metadata per scene |
+| **7. Seek & Use** | Click any timestamp badge — the video jumps to that exact moment instantly |
+
+Each scene card includes: `title` · `timestamps` · `category` · `description` · `editing justification` · `camera notes` · `audio cues` · `pacing` · `repurposing idea` · `QC validation`
+
+<br>
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/SunilKumarJB/ClipMagnet.git
+cd ClipMagnet
+
+# 2. Configure
+cp .env.example .env
+# Edit .env — pick Vertex AI or Developer API (see Configuration below)
+
+# 3. Install & run
+make setup    # Installs backend + frontend dependencies
+make run      # Starts backend (8000) + frontend (5173)
+```
+
+Open **http://localhost:5173** and start extracting.
+
+> **Googlers / Corp users:** Run `gcert` before `pip install` if you hit SSO connectivity issues.
+
+<br>
+
+## Prerequisites
+
+| Requirement | Details |
+|:--|:--|
+| Python 3.9+ | [python.org](https://www.python.org/downloads/) |
+| Node.js + npm | [nodejs.org](https://nodejs.org/) |
+| **Option A** — Vertex AI | GCP project with Vertex AI API enabled + [ADC credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc) |
+| **Option B** — Developer API | Free API key from [Google AI Studio](https://aistudio.google.com) |
+
+<br>
+
+## Architecture
+
+<div align="center">
+
+<img src="asset/overall_architecture.webp" alt="ClipMagnet Architecture" width="720">
+
+</div>
+
+<br>
+
+| Layer | Stack |
+|:--|:--|
+| **Frontend** | React + Vite — glassmorphic dark/light UI, live status polling, interactive timestamp seeking |
+| **Backend** | FastAPI (Python) — `/api/config`, `/api/extract`, `/api/status/{job_id}` |
+| **AI Pipeline** | Stage 1: hook extraction (temp=1.0, thinking=HIGH) · Stage 2: QC review (temp=0.5, thinking=HIGH) |
+| **Auth** | Vertex AI (Google Cloud ADC) or Gemini Developer API — auto-routed via env vars |
+| **Storage** | Google Cloud Storage (optional, recommended for files > 100 MB on Vertex AI) |
+
+<br>
+
+## Demo
+
+<div align="center">
+
+<table>
+  <tr>
+    <td><img src="asset/app_dark.webp" alt="ClipMagnet — Dark Theme" width="360"></td>
+    <td><img src="asset/app_light.webp" alt="ClipMagnet — Light Theme" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Dark Theme</sub></td>
+    <td align="center"><sub>Light Theme</sub></td>
+  </tr>
+</table>
+
+<br>
+
+<a href="https://drive.google.com/file/d/1wwT7PZCXNSwJ2qV4V8kFWsif9F2WQP5v/view?usp=sharing">
+  <img src="https://drive.google.com/thumbnail?id=1wwT7PZCXNSwJ2qV4V8kFWsif9F2WQP5v&sz=w1280" alt="Watch ClipMagnet Full Demo" width="720">
+</a>
+
+<sub>▶ Click to watch the full demo on Google Drive</sub>
+
+</div>
+
+<br>
+
+## Configuration
+
+Copy `.env.example` to `.env` and activate one auth mode:
+
+### Option A — Vertex AI (Google Cloud ADC)
+
+```env
+GOOGLE_GENAI_USE_VERTEXAI=TRUE
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+GOOGLE_CLOUD_LOCATION=global
+GCP_PROJECT_ID=your-gcp-project-id
+GCP_LOCATION=global
+```
+
+```bash
+gcloud auth application-default login
+```
+
+> Use `global` region — `gemini-3-pro-preview` and `gemini-3.1-pro-preview` are only available there. `us-central1` returns a 404.
+
+### Option B — Gemini Developer API
+
+```env
+GEMINI_API_KEY=your-api-key-here
+```
+
+Get a free key at [aistudio.google.com](https://aistudio.google.com).
+
+### Shared Settings
+
+```env
+DEFAULT_MODEL=gemini-3-pro-preview   # or gemini-3.1-pro-preview
+GCS_BUCKET=                          # optional; recommended for files > 100 MB on Vertex AI
+```
+
+<br>
+
+## Video Ingestion Paths
+
+ClipMagnet automatically picks the right path based on your input and auth config:
+
+| Input | Auth | Storage | Method |
+|:--|:--|:--|:--|
+| YouTube URL | Either | — | Direct URI to Gemini |
+| Local file | Either | GCS bucket set | Upload to GCS → `gs://` URI |
+| Local file | Vertex AI | No GCS | Inline bytes via `Part.from_bytes()` |
+| Local file | Developer API | No GCS | `client.files.upload()` + active-state poll |
+
+<br>
+
+## Key Features
+
+- **Two-Stage AI Pipeline** — Stage 1 extracts creatively at high temperature; Stage 2 re-watches and verifies every timestamp for accuracy
+- **Four Ingestion Paths** — YouTube, GCS, inline bytes, and Files API — the right path is chosen automatically
+- **Dual Auth** — Vertex AI and Developer API with zero code changes; swap via `.env`
+- **Live Progress** — Real-time status polling shows pipeline stage during processing
+- **Interactive Seeking** — Click any timestamp badge to jump the video player to that exact scene
+- **Dynamic Model Picker** — Model list driven by backend config, not hardcoded
+- **Mouse FX** — Three canvas-based cursor effects (Particles, Stardust, Comet) with in-app toggle
+
+<br>
+
+## Commands
+
+```bash
+make setup    # Install all dependencies (first time only)
+make run      # Start backend (8000) + frontend (5173)
+```
+
+**Manual (if needed):**
+
+```bash
+# Backend
+cd backend && python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+# Frontend (separate terminal)
+cd frontend && npm install && npm run dev
+```
+
+<br>
+
+## Models
+
+| Model | Use Case |
+|:--|:--|
+| `gemini-3-pro-preview` | Default — best quality hook extraction and QC |
+| `gemini-3.1-pro-preview` | Alternative — global region only |
+
+<br>
+
+## Troubleshooting
 
 <details>
-<summary>Click here for step-by-step manual setup</summary>
+<summary><strong>"This method is only supported in the Gemini Developer client"</strong></summary>
 
-#### 1. Backend Setup
-Navigate to the backend directory and install the required dependencies:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+You're uploading a local file while configured for Vertex AI with no GCS bucket set.
 
-> **Note for Googlers / Corp users:** If you face SSO connectivity issues during `pip install`, run `gcert` to authenticate your credentials first.
-
-Copy the example environment variables and update them if needed:
-```bash
-cp .env.example .env
-```
-Start the FastAPI server:
-```bash
-uvicorn main:app --reload
-```
-
-#### 2. Frontend Setup
-Open a new terminal, navigate to the frontend directory, and start the development server:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
+**Fix:** Either set `GCS_BUCKET` in your `.env`, or switch to Developer API mode.
 </details>
 
-### 3. Usage
-- Open `http://localhost:5173` in your browser.
-- Click the **Config** (gear icon) to switch the Gemini model or define a GCS Bucket.
-- Toggle between Light and Dark mode using the **Sun/Moon** icon.
-- Drag and drop a video file into the upload zone and hit **Extract Hook Scenes**.
-- Review the dynamically generated scene cards, complete with editor justification metadata and interactive seek badges!
+<details>
+<summary><strong>404 on model request</strong></summary>
 
-#### Sample Response
-![Sample Response](asset/clip_magnet_response.png)
+You're using `us-central1` instead of `global`.
 
-## 🧪 Technologies Built With
-- **Frontend**: React, Vite, Lucide React (Icons), Vanilla CSS
-- **Backend**: Python, FastAPI, python-multipart, python-dotenv
-- **AI**: Google Cloud Vertex AI SDK (`google-genai`), Gemini 3.0 Models
-- **Auth**: Google Cloud ADC
+**Fix:** Set `GOOGLE_CLOUD_LOCATION=global` and `GCP_LOCATION=global` in `.env`.
+</details>
 
-## 🤝 Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
+<details>
+<summary><strong>Port already in use</strong></summary>
+
+```bash
+lsof -ti:8000,5173 | xargs kill -9
+make run
+```
+</details>
+
+<details>
+<summary><strong>SSO / pip install issues (Googlers)</strong></summary>
+
+```bash
+gcert
+pip install -r requirements.txt
+```
+</details>
+
+<br>
+
+---
+
+<div align="center">
+
+[**Sunil Kumar**](https://www.linkedin.com/in/sunilkumar88/) &bull; [**Lavi Nigam**](https://www.linkedin.com/in/lavinigam/)
+
+<sub>A Gemini use-case demonstration. Not an official Google product.</sub>
+
+</div>

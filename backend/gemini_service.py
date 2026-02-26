@@ -3,15 +3,22 @@ import json
 from google import genai
 from google.genai import types
 
+def is_vertex_ai() -> bool:
+    """True when configured for Vertex AI; False for Gemini Developer API."""
+    return (
+        bool(os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT"))
+        or os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in ("true", "1")
+    )
+
 def get_client() -> genai.Client:
     """Initialize and return the genai Client."""
-    project = os.getenv("GCP_PROJECT_ID")
-    location = os.getenv("GCP_LOCATION", "us-central1")
-    
-    if project:
+    project = os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GCP_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+    if is_vertex_ai():
         print(f"Initializing Vertex AI client for project {project} in {location}")
         return genai.Client(vertexai=True, project=project, location=location)
-        
+
     return genai.Client()
 
 LOGS_DIR = "/tmp/hook_scene_extractor_logs"
@@ -60,32 +67,44 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
         video_part = types.Part.from_uri(file_uri=gcs_uri, mime_type=mime_type)
         
     else:
-        if status_callback:
-            status_callback("uploading_gemini", "Uploading video to Gemini API...")
-        # Fallback: Upload the file using the genai interface
-        print(f"Uploading file {video_path} to Gemini Files API...")
-        uploaded_file = client.files.upload(file=video_path, config={'mime_type': mime_type})
-        print(f"Uploaded file as {uploaded_file.name}")
-        
-        import time
-        timeout = 300 # 5 minutes max wait
-        start_time = time.time()
-        
-        while True:
-            file_info = client.files.get(name=uploaded_file.name)
-            if file_info.state == types.FileState.ACTIVE:
-                print("File is active and ready for inference.")
-                break
-            elif file_info.state == types.FileState.FAILED:
-                raise Exception("File processing failed.")
-            
-            if time.time() - start_time > timeout:
-                raise Exception("Timeout waiting for file to process.")
-                
-            print("Waiting for file to be ready...")
-            time.sleep(5)
-            
-        video_part = uploaded_file
+        if is_vertex_ai():
+            # Vertex AI: Files API not available — send bytes inline
+            if status_callback:
+                status_callback("uploading_gemini", "Reading video for Vertex AI inline upload...")
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            if file_size_mb > 100:
+                print(f"WARNING: {file_size_mb:.1f} MB loaded inline. Set GCS_BUCKET for large files.")
+            print(f"Loading {file_size_mb:.1f} MB file inline for Vertex AI...")
+            with open(video_path, "rb") as f:
+                video_bytes = f.read()
+            video_part = types.Part.from_bytes(data=video_bytes, mime_type=mime_type)
+        else:
+            # Developer API: use Files API with active-state polling
+            if status_callback:
+                status_callback("uploading_gemini", "Uploading video to Gemini Files API...")
+            print(f"Uploading file {video_path} to Gemini Files API...")
+            uploaded_file = client.files.upload(file=video_path, config={'mime_type': mime_type})
+            print(f"Uploaded file as {uploaded_file.name}")
+
+            import time
+            timeout = 300  # 5 minutes max wait
+            start_time = time.time()
+
+            while True:
+                file_info = client.files.get(name=uploaded_file.name)
+                if file_info.state == types.FileState.ACTIVE:
+                    print("File is active and ready for inference.")
+                    break
+                elif file_info.state == types.FileState.FAILED:
+                    raise Exception("File processing failed.")
+
+                if time.time() - start_time > timeout:
+                    raise Exception("Timeout waiting for file to process.")
+
+                print("Waiting for file to be ready...")
+                time.sleep(5)
+
+            video_part = uploaded_file
     
     # Now that the file is ready, construct the prompt
     prompt = """
@@ -173,6 +192,8 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
         }
     }
     
+    vertex = is_vertex_ai()  # cache once for both stages
+
     if status_callback:
         status_callback("analyzing", "Extracting initial scenes with Gemini AI...")
     
@@ -204,7 +225,7 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
                     thinking_level="HIGH",
                 ),
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
-                audio_timestamp=True,
+                audio_timestamp=True if vertex else None,
                 response_mime_type="application/json",
                 response_schema=response_schema
             )
@@ -266,7 +287,7 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
                     thinking_level="HIGH",
                 ),
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
-                audio_timestamp=True,
+                audio_timestamp=True if vertex else None,
                 response_mime_type="application/json",
                 response_schema=qc_response_schema
             )
