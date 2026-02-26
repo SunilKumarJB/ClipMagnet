@@ -192,6 +192,8 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
         }
     }
     
+    vertex = is_vertex_ai()  # cache once for both stages
+
     if status_callback:
         status_callback("analyzing", "Extracting initial scenes with Gemini AI...")
     
@@ -223,7 +225,7 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
                     thinking_level="HIGH",
                 ),
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
-                audio_timestamp=True,
+                audio_timestamp=True if vertex else None,
                 response_mime_type="application/json",
                 response_schema=response_schema
             )
@@ -285,7 +287,7 @@ def process_video(video_path: str, mime_type: str, model_id: str, gcs_bucket: st
                     thinking_level="HIGH",
                 ),
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
-                audio_timestamp=True,
+                audio_timestamp=True if vertex else None,
                 response_mime_type="application/json",
                 response_schema=qc_response_schema
             )
