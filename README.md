@@ -4,8 +4,6 @@ ClipMagnet is a modern web application powered by **Google Gemini** models that 
 
 It supports two authentication modes out of the box: **Vertex AI** (Google Cloud ADC) and the **Gemini Developer API** (API key), with automatic routing between them based on your environment configuration.
 
-> **Disclaimer:** This project is a use case demonstration for Gemini. It is experimental and **NOT** an official Google product. It does not reflect the official products or policies of Google or Google Cloud.
-
 ---
 
 ## ✨ Features
@@ -179,3 +177,9 @@ GCS_BUCKET=                          # Optional; recommended for files >100 MB o
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## ⚠️ Disclaimer
+
+This project is a use case demonstration for Gemini. It is experimental and **NOT** an official Google product. It does not reflect the official products or policies of Google or Google Cloud.
