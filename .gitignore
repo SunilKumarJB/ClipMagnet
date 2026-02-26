@@ -30,5 +30,12 @@ backend/build/
 # Git worktrees
 .worktrees/
 
+# Local implementation notes
+.docs/
+
+# Large source video files (too big for git)
+asset/ClipMagnet.gif
+asset/clipmagnet_demo.gif
+
 # Local project instructions (not for sharing)
 CLAUDE.md
