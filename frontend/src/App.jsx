@@ -21,6 +21,7 @@ function App() {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
   const [authMode, setAuthMode] = useState(null);
+  const [availableModels, setAvailableModels] = useState([]);
 
   // Apply theme to document element
   useEffect(() => {
@@ -33,6 +34,7 @@ function App() {
       .then(res => {
         if (res.data.auth_mode) setAuthMode(res.data.auth_mode);
         if (res.data.default_model) setModelId(res.data.default_model);
+        if (res.data.available_models) setAvailableModels(res.data.available_models);
       })
       .catch(err => console.error("Failed to fetch config", err));
   }, []);
@@ -531,10 +533,9 @@ function App() {
             <div className="form-group">
               <label>Gemini Model</label>
               <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
-                <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-                <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+                {availableModels.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">
