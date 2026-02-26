@@ -20,11 +20,22 @@ function App() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
+  const [authMode, setAuthMode] = useState(null);
 
   // Apply theme to document element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Fetch backend config on mount
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/config`)
+      .then(res => {
+        if (res.data.auth_mode) setAuthMode(res.data.auth_mode);
+        if (res.data.default_model) setModelId(res.data.default_model);
+      })
+      .catch(err => console.error("Failed to fetch config", err));
+  }, []);
 
   // Polling logic for job status
   useEffect(() => {
@@ -537,7 +548,11 @@ function App() {
               />
             </div>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              This model will be used by Vertex AI for inference. Ensure your environment has the correct Google Cloud credentials.
+              {authMode === 'vertex_ai'
+                ? 'Running in Vertex AI mode. Use ADC credentials (gcloud auth application-default login). Set a GCS bucket for files larger than ~100 MB.'
+                : authMode === 'developer_api'
+                  ? 'Running in Gemini Developer API mode. Files are uploaded via the Gemini Files API. GCS bucket is optional.'
+                  : 'Loading configuration...'}
             </p>
           </div>
         </div>

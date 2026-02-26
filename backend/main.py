@@ -46,7 +46,8 @@ async def get_config():
             "gemini-2.5-pro",
             "gemini-2.0-flash-exp"
         ],
-        "default_model": "gemini-3-pro-preview"
+        "default_model": os.getenv("DEFAULT_MODEL", "gemini-3-pro-preview"),
+        "auth_mode": "vertex_ai" if gemini_service.is_vertex_ai() else "developer_api"
     }
 
 @app.get("/api/status/{job_id}")
