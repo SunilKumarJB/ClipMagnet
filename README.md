@@ -23,23 +23,24 @@ It supports two authentication modes out of the box: **Vertex AI** (Google Cloud
 
 ## 🏗️ Architecture
 
-```
+```text
 ClipMagnet/
-├── backend/          # FastAPI + Python (AI orchestration)
-│   ├── main.py       # API endpoints: /api/config, /api/status, /api/extract
+├── backend/               # FastAPI + Python (AI orchestration)
+│   ├── main.py            # API endpoints: /api/config, /api/status, /api/extract
 │   └── gemini_service.py  # Two-stage Gemini pipeline + auth routing
-├── frontend/         # React + Vite (single-component app)
-│   └── src/App.jsx   # All state, UI, and handlers
-└── .env.example      # Auth configuration template
+├── frontend/              # React + Vite (single-component app)
+│   └── src/App.jsx        # All state, UI, and handlers
+└── .env.example           # Auth configuration template
 ```
 
 ### Workflow
+
 ![Workflow](asset/clipmagnet_workflow.png)
 
 ### Video Ingestion Paths
 
 | Input | Auth | Storage | Method |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | YouTube URL | Either | — | `Part.from_uri(url)` |
 | Local file | Either | GCS bucket set | GCS upload → `Part.from_uri(gs://...)` |
 | Local file | Vertex AI | No GCS | `Part.from_bytes()` — inline |
@@ -61,17 +62,21 @@ ClipMagnet/
 ### Quick Start
 
 **1. Install dependencies:**
+
 ```bash
 make setup
 ```
 
 **2. Configure your environment:**
+
 ```bash
 cp .env.example .env
 ```
-Edit `.env` and fill in your credentials (see [Configuration](#️-configuration) below).
+
+Edit `.env` and fill in your credentials (see [Configuration](#%EF%B8%8F-configuration) below).
 
 **3. Start the application:**
+
 ```bash
 make run
 ```
@@ -83,10 +88,8 @@ make run
 
 ### Manual Setup
 
-<details>
-<summary>Step-by-step without Make</summary>
+**Backend:**
 
-#### Backend
 ```bash
 cd backend
 python3 -m venv venv
@@ -97,14 +100,13 @@ uvicorn main:app --reload
 
 > **Note for Googlers / Corp users:** If you face SSO connectivity issues during `pip install`, run `gcert` first.
 
-#### Frontend
+**Frontend** (in a separate terminal):
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-</details>
 
 ---
 
@@ -123,6 +125,7 @@ GCP_LOCATION=global
 ```
 
 Then authenticate:
+
 ```bash
 gcloud auth application-default login
 ```
@@ -155,7 +158,8 @@ GCS_BUCKET=                          # Optional; recommended for files >100 MB o
 5. Drag and drop a video (or paste a YouTube URL) and click **Extract Hook Scenes**.
 6. Review the generated scene cards — click any timestamp badge to seek the video directly to that moment.
 
-#### Sample Response
+**Sample Response:**
+
 ![Sample Response](asset/clip_magnet_response.png)
 
 ---
@@ -163,7 +167,7 @@ GCS_BUCKET=                          # Optional; recommended for files >100 MB o
 ## 🧪 Technologies
 
 | Layer | Stack |
-|---|---|
+| --- | --- |
 | Frontend | React, Vite, Lucide React, Vanilla CSS |
 | Backend | Python, FastAPI, python-multipart, python-dotenv |
 | AI | `google-genai` SDK, Gemini 3 / 3.1 Pro models |
