@@ -26,3 +26,9 @@ backend/build/
 *.sln
 *.sw?
 .DS_Store
+
+# Git worktrees
+.worktrees/
+
+# Local project instructions (not for sharing)
+CLAUDE.md
