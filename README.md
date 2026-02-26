@@ -19,6 +19,9 @@ The project follows a decoupled monorepo structure:
 - **`/frontend`**: A React application built with Vite and vanilla CSS. Handles the drag-and-drop UI and video rendering.
 - **`/backend`**: A FastAPI Python application. Orchestrates video uploads and communicates with Vertex AI using the latest `google-genai` SDK.
 
+### Workflow
+![Workflow](asset/clipmagnet_workflow.png)
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -84,6 +87,9 @@ npm run dev
 - Toggle between Light and Dark mode using the **Sun/Moon** icon.
 - Drag and drop a video file into the upload zone and hit **Extract Hook Scenes**.
 - Review the dynamically generated scene cards, complete with editor justification metadata and interactive seek badges!
+
+#### Sample Response
+![Sample Response](asset/clip_magnet_response.png)
 
 ## 🧪 Technologies Built With
 - **Frontend**: React, Vite, Lucide React (Icons), Vanilla CSS
