@@ -22,6 +22,7 @@ function App() {
   const [theme, setTheme] = useState('dark');
   const [authMode, setAuthMode] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
+  const [mouseEffect, setMouseEffect] = useState('particles');
 
   // Apply theme to document element
   useEffect(() => {
@@ -49,8 +50,6 @@ function App() {
           if (res.data) {
             setJobStage(res.data.stage);
             setJobMessage(res.data.message);
-            // If it's complete or error, we could optionally handle it here, 
-            // but the main POST request will also resolve and update state.
           }
         } catch (err) {
           console.error("Failed to poll status", err);
@@ -64,6 +63,130 @@ function App() {
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const trailRef = useRef([]);
+  const frameRef = useRef(null);
+
+  // Combined canvas effect — particles (float up), stardust (360° burst), comet (gradient trail)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || mouseEffect === 'off') {
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      cancelAnimationFrame(frameRef.current);
+      particlesRef.current = [];
+      trailRef.current = [];
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const COLORS = ['rgba(94,92,230', 'rgba(10,132,255', 'rgba(48,209,88'];
+    let colorIdx = 0;
+
+    // Clear state from any previous effect
+    particlesRef.current = [];
+    trailRef.current = [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const onMove = (e) => {
+      if (mouseEffect === 'particles') {
+        const color = COLORS[colorIdx++ % COLORS.length];
+        for (let i = 0; i < 2; i++) {
+          particlesRef.current.push({
+            x: e.clientX + (Math.random() - 0.5) * 10,
+            y: e.clientY + (Math.random() - 0.5) * 10,
+            size: Math.random() * 8 + 4,
+            opacity: 0.65,
+            color,
+            vy: -(Math.random() * 0.8 + 0.3),
+            vx: (Math.random() - 0.5) * 0.8,
+            decay: 0.016,
+          });
+        }
+      } else if (mouseEffect === 'stardust') {
+        const color = COLORS[colorIdx++ % COLORS.length];
+        for (let i = 0; i < 6; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 3 + 1.5;
+          particlesRef.current.push({
+            x: e.clientX,
+            y: e.clientY,
+            size: Math.random() * 4 + 2,
+            opacity: 0.85,
+            color,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            decay: 0.04,
+          });
+        }
+      } else if (mouseEffect === 'comet') {
+        trailRef.current.push({ x: e.clientX, y: e.clientY, ts: Date.now() });
+        if (trailRef.current.length > 80) trailRef.current.splice(0, trailRef.current.length - 80);
+      }
+      if (particlesRef.current.length > 200) particlesRef.current.splice(0, particlesRef.current.length - 200);
+    };
+
+    const tick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (mouseEffect === 'comet') {
+        const now = Date.now();
+        const FADE_MS = 600;
+        trailRef.current = trailRef.current.filter(pt => now - pt.ts < FADE_MS);
+        const len = trailRef.current.length;
+        trailRef.current.forEach((pt, i) => {
+          const age = (now - pt.ts) / FADE_MS;      // 0=fresh 1=expired
+          const posInTrail = (i + 1) / len;          // 0=oldest 1=newest
+          const opacity = (1 - age) * 0.82;
+          const size = posInTrail * 10 + 1;
+          let fillColor;
+          if (posInTrail < 0.33)       fillColor = `rgba(94,92,230,${opacity})`;
+          else if (posInTrail < 0.66)  fillColor = `rgba(10,132,255,${opacity})`;
+          else                         fillColor = `rgba(48,209,88,${opacity})`;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
+          ctx.fillStyle = fillColor;
+          ctx.fill();
+        });
+      } else {
+        particlesRef.current = particlesRef.current.filter(p => p.opacity > 0.02);
+        particlesRef.current.forEach(p => {
+          p.opacity -= p.decay;
+          p.size = Math.max(0, p.size * 0.975);
+          p.y += p.vy;
+          p.x += p.vx;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = `${p.color},${p.opacity})`;
+          ctx.fill();
+        });
+      }
+
+      frameRef.current = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    frameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(frameRef.current);
+      particlesRef.current = [];
+      trailRef.current = [];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  }, [mouseEffect]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -107,7 +230,6 @@ function App() {
     setJobStage('initializing');
     setJobMessage('Preparing...');
 
-    // Generate a simple unique ID for this job
     const newJobId = Math.random().toString(36).substring(2, 15);
     setJobId(newJobId);
 
@@ -123,9 +245,7 @@ function App() {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/extract`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setJobStage('complete');
       setJobMessage('Extraction complete.');
@@ -162,8 +282,6 @@ function App() {
 
   const seekToTime = (timeStr) => {
     if (!videoRef.current || !timeStr) return;
-
-    // Parse time string e.g. "00:01:23"
     try {
       const parts = timeStr.split(':').reverse();
       let seconds = 0;
@@ -203,45 +321,66 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Background blob canvas */}
+      <div className="bg-canvas" aria-hidden="true" />
+
+      {/* Canvas: particles / stardust / comet */}
+      <canvas ref={canvasRef} className="particle-canvas" aria-hidden="true" />
+
+      {/* Floating Header */}
       <header className="app-header">
         <div className="logo-container">
           <div className="logo-icon">
-            <Film size={24} />
+            <Film size={18} />
           </div>
           <h1 className="app-title">ClipMagnet</h1>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="header-actions">
           <button
-            className="glass-button"
+            className="glass-button btn-icon"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             title="Toggle Theme"
-            style={{ padding: '10px' }}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
           <button className="glass-button" onClick={() => setShowSettings(true)}>
-            <Settings size={18} />
+            <Settings size={15} />
             <span>Config</span>
           </button>
         </div>
       </header>
 
       <main className="main-content">
+
+        {/* ── Upload Section ── */}
         {!isProcessing && !results && (
           <div className="upload-container">
+
+            {/* Hero copy */}
+            <div className="upload-hero">
+              <h2>Find Your Best Moments</h2>
+              <p>Drop a video or paste a YouTube link — Gemini AI extracts every viral hook scene.</p>
+            </div>
+
+            {/* iOS Segmented Control */}
             <div className="upload-tabs">
-              <button
-                className={`tab-btn ${uploadMode === 'file' ? 'active' : ''}`}
-                onClick={() => setUploadMode('file')}
-              >
-                Local File
-              </button>
-              <button
-                className={`tab-btn ${uploadMode === 'url' ? 'active' : ''}`}
-                onClick={() => setUploadMode('url')}
-              >
-                YouTube Link
-              </button>
+              <div className="segmented-control">
+                <button
+                  className={`tab-btn ${uploadMode === 'file' ? 'active' : ''}`}
+                  onClick={() => setUploadMode('file')}
+                >
+                  <UploadCloud size={13} />
+                  Local File
+                </button>
+                <button
+                  className={`tab-btn ${uploadMode === 'url' ? 'active' : ''}`}
+                  onClick={() => setUploadMode('url')}
+                >
+                  <PlayCircle size={13} />
+                  YouTube Link
+                </button>
+              </div>
             </div>
 
             {uploadMode === 'file' ? (
@@ -260,24 +399,25 @@ function App() {
                   onChange={handleFileChange}
                 />
                 <div className="upload-icon-wrapper">
-                  <UploadCloud size={40} />
+                  <UploadCloud size={32} />
                 </div>
                 <div className="upload-text">
-                  <h3>Upload Video</h3>
-                  <p>Drag and drop a video file here, or click to browse</p>
+                  <h3>Drop your video here</h3>
+                  <p>or click to browse — MP4, MOV, AVI supported</p>
                 </div>
 
                 {file && (
-                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ color: '#4285f4', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <CheckCircle2 size={18} />
-                      {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                  <div className="file-selected-info">
+                    <div className="file-name-badge">
+                      <CheckCircle2 size={14} />
+                      {file.name}&nbsp;·&nbsp;{(file.size / (1024 * 1024)).toFixed(1)} MB
                     </div>
                     <button
                       className="glass-button primary-button"
                       onClick={(e) => { e.stopPropagation(); handleUpload(); }}
                     >
-                      <Play size={18} /> Extract Hook Scenes
+                      <Play size={15} />
+                      Extract Hook Scenes
                     </button>
                   </div>
                 )}
@@ -285,13 +425,13 @@ function App() {
             ) : (
               <div className="glass-panel uploader-area" style={{ cursor: 'default' }}>
                 <div className="upload-icon-wrapper">
-                  <PlayCircle size={40} />
+                  <PlayCircle size={32} />
                 </div>
                 <div className="upload-text">
-                  <h3>Paste YouTube URL</h3>
-                  <p>Enter a public YouTube video link for Gemini to analyze</p>
+                  <h3>Paste a YouTube URL</h3>
+                  <p>Gemini will analyze the public video directly</p>
                 </div>
-                <div style={{ marginTop: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px', margin: '20px auto 0 auto' }}>
+                <div className="url-input-group">
                   <input
                     type="text"
                     value={youtubeUrl}
@@ -303,9 +443,9 @@ function App() {
                     className="glass-button primary-button"
                     onClick={handleUpload}
                     disabled={!youtubeUrl}
-                    style={{ opacity: youtubeUrl ? 1 : 0.5 }}
                   >
-                    <Play size={18} /> Extract Hook Scenes
+                    <Play size={15} />
+                    Extract Hook Scenes
                   </button>
                 </div>
               </div>
@@ -313,39 +453,39 @@ function App() {
           </div>
         )}
 
+        {/* ── Processing State ── */}
         {isProcessing && (
           <div className="glass-panel status-container">
-            <h3>Processing Video with {modelId}</h3>
+            <div>
+              <p className="status-model-name">{modelId}</p>
+              <h3 className="status-title">Analyzing Your Video</h3>
+            </div>
 
             <div className="progress-tracker">
-              {/* Step 1: Uploading */}
               {uploadMode === 'file' && (
                 <>
                   <div className={`progress-step ${getUploadClass()}`}>
                     <div className="step-icon">
-                      {getUploadClass().includes('completed') ? <CheckCircle2 size={24} /> : <UploadCloud size={24} />}
+                      {getUploadClass().includes('completed') ? <CheckCircle2 size={22} /> : <UploadCloud size={22} />}
                     </div>
                     <div className="step-label">Uploading</div>
                   </div>
-
-                  <div className={`progress-line ${getLineClass(1)}`}><div className="line-fill"></div></div>
+                  <div className={`progress-line ${getLineClass(1)}`} />
                 </>
               )}
 
-              {/* Step 2: Extraction */}
               <div className={`progress-step ${getExtClass()}`}>
                 <div className="step-icon">
-                  {getExtClass().includes('completed') ? <CheckCircle2 size={24} /> : <Film size={24} />}
+                  {getExtClass().includes('completed') ? <CheckCircle2 size={22} /> : <Film size={22} />}
                 </div>
                 <div className="step-label">AI Extraction</div>
               </div>
 
-              <div className={`progress-line ${getLineClass(2)}`}><div className="line-fill"></div></div>
+              <div className={`progress-line ${getLineClass(2)}`} />
 
-              {/* Step 3: Quality Check */}
               <div className={`progress-step ${getQcClass()}`}>
                 <div className="step-icon">
-                  {getQcClass().includes('completed') ? <CheckCircle2 size={24} /> : <Activity size={24} />}
+                  {getQcClass().includes('completed') ? <CheckCircle2 size={22} /> : <Activity size={22} />}
                 </div>
                 <div className="step-label">Quality Check</div>
               </div>
@@ -355,16 +495,26 @@ function App() {
           </div>
         )}
 
+        {/* ── Error State ── */}
         {error && (
-          <div className="glass-panel" style={{ padding: '24px', borderLeft: '4px solid #ea4335' }}>
-            <h3 style={{ color: '#ea4335', marginBottom: '8px' }}>Error</h3>
-            <p>{error}</p>
-            <button className="glass-button" style={{ marginTop: '16px' }} onClick={() => setError(null)}>Try Again</button>
+          <div className="glass-panel error-panel">
+            <h3 className="error-title">Something went wrong</h3>
+            <p className="error-message">{error}</p>
+            <button
+              className="glass-button"
+              style={{ marginTop: '16px' }}
+              onClick={() => setError(null)}
+            >
+              Try Again
+            </button>
           </div>
         )}
 
+        {/* ── Results ── */}
         {results && (
           <div className="results-layout">
+
+            {/* Sticky video panel */}
             <div className="video-sticky-container">
               {uploadMode === 'file' && videoUrl ? (
                 <div className="video-wrapper">
@@ -386,40 +536,48 @@ function App() {
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
-                    style={{ borderRadius: 'var(--radius-lg)' }}
-                  ></iframe>
+                    style={{ display: 'block' }}
+                  />
                 </div>
               ) : (
-                <div className="glass-panel" style={{ padding: '24px', textAlign: 'center' }}>
+                <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   Video preview not available.
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0 }}>Review Extractions</h3>
+
+              <div className="results-actions">
+                <span className="results-label">Review Extractions</span>
                 <button
                   className="glass-button"
-                  style={{ fontSize: '13px', padding: '6px 12px' }}
+                  style={{ fontSize: '13px', padding: '6px 14px', minHeight: '32px' }}
                   onClick={() => {
                     setResults(null);
                     setFile(null);
                     setVideoUrl(null);
                   }}
                 >
-                  Upload New Video
+                  New Video
                 </button>
               </div>
             </div>
 
+            {/* Scene list */}
             <div className="timeline-container">
               <div className="timeline-header">
-                <Film size={24} />
-                <span>Extracted Hook Scenes</span>
+                <Film size={20} />
+                <span>Hook Scenes</span>
+                {Array.isArray(results) && (
+                  <span className="scene-count-badge">{results.length}</span>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {Array.isArray(results) ? results.map((scene, idx) => (
-                  <div key={idx} className={`glass-panel scene-card ${getCategoryTheme(scene.category)}`}>
-
+                  <div
+                    key={idx}
+                    className={`glass-panel scene-card ${getCategoryTheme(scene.category)}`}
+                    style={{ animationDelay: `${idx * 55}ms` }}
+                  >
                     <div className="scene-header-row">
                       <div className="scene-title-group">
                         <div className="scene-category">{scene.category}</div>
@@ -427,91 +585,88 @@ function App() {
                       </div>
                       <div
                         className="scene-time-badge"
-                        title="Click to seek to this scene in the video"
+                        title="Click to seek to this scene"
                         onClick={() => seekToTime(scene.start_timestamp || scene.start)}
                       >
-                        <PlayCircle size={16} />
-                        {scene.start_timestamp || scene.start} - {scene.end_timestamp || scene.end}
+                        <PlayCircle size={13} />
+                        {scene.start_timestamp || scene.start} – {scene.end_timestamp || scene.end}
                       </div>
                     </div>
 
-                    <div className="scene-content">
-                      <div className="scene-desc">
-                        {scene.description || scene.reason || "Hook explanation"}
-                      </div>
-
-                      {/* Render Editor Metadata in a nice grid */}
-                      {(scene.editing_justification || scene.visuals_camera || scene.audio_cues || scene.pacing || scene.repurposing_idea || scene.edit_cut_notes) && (
-                        <div className="metadata-grid">
-                          {scene.repurposing_idea && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Share2 size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Repurposing Idea</span>
-                                <span className="metadata-value">{scene.repurposing_idea}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.edit_cut_notes && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Scissors size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Edit/Cut Notes</span>
-                                <span className="metadata-value">{scene.edit_cut_notes}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.editing_justification && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Lightbulb size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Why it works</span>
-                                <span className="metadata-value">{scene.editing_justification}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.visuals_camera && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Camera size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Camera & Visuals</span>
-                                <span className="metadata-value">{scene.visuals_camera}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.qc_reasoning && (
-                            <div className="metadata-item" style={{ gridColumn: '1 / -1', background: 'rgba(46, 204, 113, 0.1)', borderLeft: '3px solid #2ecc71' }}>
-                              <div className="metadata-icon" style={{ color: '#2ecc71' }}><CheckCircle2 size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label" style={{ color: '#2ecc71' }}>QC Validation</span>
-                                <span className="metadata-value">{scene.qc_reasoning}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.audio_cues && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Music size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Audio Notes</span>
-                                <span className="metadata-value">{scene.audio_cues}</span>
-                              </div>
-                            </div>
-                          )}
-                          {scene.pacing && (
-                            <div className="metadata-item">
-                              <div className="metadata-icon"><Activity size={20} /></div>
-                              <div className="metadata-content">
-                                <span className="metadata-label">Pacing / Energy</span>
-                                <span className="metadata-value">{scene.pacing}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <div className="scene-desc">
+                      {scene.description || scene.reason || 'Hook explanation'}
                     </div>
+
+                    {(scene.editing_justification || scene.visuals_camera || scene.audio_cues || scene.pacing || scene.repurposing_idea || scene.edit_cut_notes || scene.qc_reasoning) && (
+                      <div className="metadata-grid">
+                        {scene.repurposing_idea && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Share2 size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Repurpose</span>
+                              <span className="metadata-value">{scene.repurposing_idea}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.edit_cut_notes && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Scissors size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Cut Notes</span>
+                              <span className="metadata-value">{scene.edit_cut_notes}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.editing_justification && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Lightbulb size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Why it works</span>
+                              <span className="metadata-value">{scene.editing_justification}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.visuals_camera && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Camera size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Camera & Visuals</span>
+                              <span className="metadata-value">{scene.visuals_camera}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.audio_cues && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Music size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Audio Cues</span>
+                              <span className="metadata-value">{scene.audio_cues}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.pacing && (
+                          <div className="metadata-item">
+                            <div className="metadata-icon"><Activity size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">Pacing / Energy</span>
+                              <span className="metadata-value">{scene.pacing}</span>
+                            </div>
+                          </div>
+                        )}
+                        {scene.qc_reasoning && (
+                          <div className="metadata-item qc-item">
+                            <div className="metadata-icon"><CheckCircle2 size={15} /></div>
+                            <div className="metadata-content">
+                              <span className="metadata-label">QC Validation</span>
+                              <span className="metadata-value">{scene.qc_reasoning}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )) : (
-                  <pre style={{ background: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '8px', overflowX: 'auto' }}>
+                  <pre className="json-fallback">
                     {JSON.stringify(results, null, 2)}
                   </pre>
                 )}
@@ -521,26 +676,48 @@ function App() {
         )}
       </main>
 
+      {/* ── Config Modal ── */}
       {showSettings && (
         <div className="modal-overlay" onClick={() => setShowSettings(false)}>
           <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span>Configuration</span>
-              <button className="close-btn" onClick={() => setShowSettings(false)}>
-                <X size={24} />
+              <span className="modal-title">
+                Configuration
+                {authMode && (
+                  <span className={`auth-mode-badge ${authMode === 'vertex_ai' ? 'vertex' : 'developer'}`}>
+                    {authMode === 'vertex_ai' ? 'Vertex AI' : 'Developer API'}
+                  </span>
+                )}
+              </span>
+              <button
+                className="glass-button btn-icon"
+                onClick={() => setShowSettings(false)}
+                aria-label="Close settings"
+              >
+                <X size={18} />
               </button>
             </div>
+
             <div className="form-group">
-              <label>Gemini Model</label>
-              <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
-                {availableModels.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+              <label htmlFor="model-select">Gemini Model</label>
+              <select
+                id="model-select"
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+              >
+                {availableModels.length > 0
+                  ? availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                  : <option value={modelId}>{modelId}</option>
+                }
               </select>
             </div>
+
             <div className="form-group">
-              <label>GCS Bucket (Optional)</label>
+              <label htmlFor="gcs-bucket">
+                GCS Bucket <span style={{ fontWeight: 400, opacity: 0.6 }}>(Optional)</span>
+              </label>
               <input
+                id="gcs-bucket"
                 type="text"
                 value={gcsBucket}
                 onChange={(e) => setGcsBucket(e.target.value)}
@@ -548,16 +725,53 @@ function App() {
                 className="custom-input"
               />
             </div>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+
+            <p className="auth-help-text">
               {authMode === 'vertex_ai'
-                ? 'Running in Vertex AI mode. Use ADC credentials (gcloud auth application-default login). Set a GCS bucket for files larger than ~100 MB.'
+                ? 'Running in Vertex AI mode. Authenticate with: gcloud auth application-default login. Set a GCS bucket for files larger than ~100 MB.'
                 : authMode === 'developer_api'
-                  ? 'Running in Gemini Developer API mode. Files are uploaded via the Gemini Files API. GCS bucket is optional.'
-                  : 'Loading configuration...'}
+                ? 'Running in Gemini Developer API mode. Files are uploaded via the Gemini Files API. GCS bucket is optional.'
+                : 'Loading configuration…'}
             </p>
           </div>
         </div>
       )}
+
+      {/* ── FX Toggle ── */}
+      <div className="fx-toggle" role="group" aria-label="Mouse effect">
+        <span className="fx-label">FX</span>
+        <button
+          className={`fx-btn ${mouseEffect === 'particles' ? 'active' : ''}`}
+          onClick={() => setMouseEffect(mouseEffect === 'particles' ? 'off' : 'particles')}
+          title="Particles — colored orbs float upward"
+        >
+          Particles
+        </button>
+        <button
+          className={`fx-btn ${mouseEffect === 'stardust' ? 'active' : ''}`}
+          onClick={() => setMouseEffect(mouseEffect === 'stardust' ? 'off' : 'stardust')}
+          title="Stardust — 360° burst scatter on every move"
+        >
+          Stardust
+        </button>
+        <button
+          className={`fx-btn ${mouseEffect === 'comet' ? 'active' : ''}`}
+          onClick={() => setMouseEffect(mouseEffect === 'comet' ? 'off' : 'comet')}
+          title="Comet — gradient trail fades behind cursor"
+        >
+          Comet
+        </button>
+      </div>
+
+      {/* ── Footer ── */}
+      <footer className="app-footer">
+        <span>
+          By{' '}
+          <a href="https://www.linkedin.com/in/sunilkumar88/" target="_blank" rel="noopener noreferrer" className="footer-link">Sunil Kumar</a>
+          {' '}&bull;{' '}
+          <a href="https://www.linkedin.com/in/lavinigam/" target="_blank" rel="noopener noreferrer" className="footer-link">Lavi Nigam</a>
+        </span>
+      </footer>
     </div>
   );
 }
