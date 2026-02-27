@@ -39,3 +39,6 @@ asset/clipmagnet_demo.gif
 
 # Local project instructions (not for sharing)
 CLAUDE.md
+
+# Claude Code local settings
+.claude/
