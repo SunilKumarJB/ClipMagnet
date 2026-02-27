@@ -59,7 +59,6 @@ make run      # Starts backend (8000) + frontend (5173)
 
 Open **http://localhost:5173** and start extracting.
 
-> **Googlers / Corp users:** Run `gcert` before `pip install` if you hit SSO connectivity issues.
 
 <br>
 
@@ -237,15 +236,6 @@ You're using `us-central1` instead of `global`.
 ```bash
 lsof -ti:8000,5173 | xargs kill -9
 make run
-```
-</details>
-
-<details>
-<summary><strong>SSO / pip install issues (Googlers)</strong></summary>
-
-```bash
-gcert
-pip install -r requirements.txt
 ```
 </details>
 
