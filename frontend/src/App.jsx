@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Settings, UploadCloud, Film, Play, X, CheckCircle2, Camera, Music, Activity, Lightbulb, PlayCircle, Sun, Moon, Share2, Scissors } from 'lucide-react';
+import { Settings, UploadCloud, Film, Play, X, CheckCircle2, Camera, Music, Activity, Lightbulb, PlayCircle, Sun, Moon, Share2, Scissors, Download } from 'lucide-react';
 import './index.css';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -319,6 +321,80 @@ function App() {
     return '';
   };
 
+  const downloadJSON = () => {
+    if (!results) return;
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clipmagnet_results_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPDF = () => {
+    if (!results) return;
+    const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
+
+    // Add Title
+    doc.setFontSize(18);
+    doc.setTextColor(40);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ClipMagnet - Hook Scene Recommendations', 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 26);
+
+    const tableColumn = ["#", "Scene Title", "Category", "Timeline", "Description", "Action Plan"];
+    const tableRows = [];
+
+    results.forEach((scene, index) => {
+      const actionPlanItems = [];
+      if (scene.editing_justification) actionPlanItems.push(`• Why: ${scene.editing_justification}`);
+      if (scene.visuals_camera) actionPlanItems.push(`• Visual: ${scene.visuals_camera}`);
+      if (scene.audio_cues) actionPlanItems.push(`• Audio: ${scene.audio_cues}`);
+      if (scene.pacing) actionPlanItems.push(`• Pacing: ${scene.pacing}`);
+      if (scene.repurposing_idea) actionPlanItems.push(`• Repurpose: ${scene.repurposing_idea}`);
+      if (scene.edit_cut_notes) actionPlanItems.push(`• Cut Notes: ${scene.edit_cut_notes}`);
+
+      const actionPlanText = actionPlanItems.join('\n\n');
+
+      tableRows.push([
+        index + 1,
+        scene.title || 'Untitled',
+        scene.category || 'Uncategorized',
+        `${scene.start_timestamp || scene.start} - ${scene.end_timestamp || scene.end}`,
+        scene.description || scene.reason || '',
+        actionPlanText
+      ]);
+    });
+
+    autoTable(doc, {
+      startY: 32,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak', textColor: 40 },
+      headStyles: { fillColor: [94, 92, 230], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 8, fontStyle: 'bold', halign: 'center' },
+        1: { cellWidth: 40, fontStyle: 'bold' },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 28, halign: 'center' },
+        4: { cellWidth: 'auto' },
+        5: { cellWidth: 'auto', fontSize: 8.5 }
+      },
+      margin: { left: 14, right: 14 },
+      pageBreak: 'auto'
+    });
+
+    doc.save(`clipmagnet_results_${Date.now()}.pdf`);
+  };
+
   return (
     <div className="app-container">
       {/* Background blob canvas */}
@@ -547,17 +623,37 @@ function App() {
 
               <div className="results-actions">
                 <span className="results-label">Review Extractions</span>
-                <button
-                  className="glass-button"
-                  style={{ fontSize: '13px', padding: '6px 14px', minHeight: '32px' }}
-                  onClick={() => {
-                    setResults(null);
-                    setFile(null);
-                    setVideoUrl(null);
-                  }}
-                >
-                  New Video
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="glass-button"
+                    style={{ fontSize: '13px', padding: '6px 12px', minHeight: '32px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={downloadJSON}
+                    title="Download as JSON"
+                  >
+                    <Download size={13} />
+                    JSON
+                  </button>
+                  <button
+                    className="glass-button"
+                    style={{ fontSize: '13px', padding: '6px 12px', minHeight: '32px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={downloadPDF}
+                    title="Download as PDF"
+                  >
+                    <Download size={13} />
+                    PDF
+                  </button>
+                  <button
+                    className="glass-button primary-button"
+                    style={{ fontSize: '13px', padding: '6px 14px', minHeight: '32px' }}
+                    onClick={() => {
+                      setResults(null);
+                      setFile(null);
+                      setVideoUrl(null);
+                    }}
+                  >
+                    New Video
+                  </button>
+                </div>
               </div>
             </div>
 
