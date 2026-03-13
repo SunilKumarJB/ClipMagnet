@@ -34,7 +34,7 @@ Supports **Vertex AI** (Google Cloud ADC) and the **Gemini Developer API** — s
 | **3. Choose Input** | Drag & drop a video file **or** paste a YouTube URL (Recommended video length: 15-30 mins) |
 | **4. Extract** | Click **Extract Hook Scenes** — Gemini starts analyzing your full video |
 | **5. Processing** | Live progress tracker: Uploading → AI Extraction → QC Review (typically 2–5 min) |
-| **6. Review Scenes** | Browse hook scene cards with full editor metadata per scene |
+| **6. Review Scenes** | Browse hook scene cards with full editor metadata per scene with option to download the result as PDF or JSON |
 | **7. Seek & Use** | Click any timestamp badge — the video jumps to that exact moment instantly |
 
 Each scene card includes: `title` · `timestamps` · `category` · `description` · `editing justification` · `camera notes` · `audio cues` · `pacing` · `repurposing idea` · `QC validation`
