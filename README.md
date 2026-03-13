@@ -31,7 +31,7 @@ Supports **Vertex AI** (Google Cloud ADC) and the **Gemini Developer API** — s
 |:--|:--|
 | **1. Open App** | Visit `localhost:5173` in your browser |
 | **2. Configure** | Click ⚙ Config — select Gemini model, optionally set a GCS bucket for large files |
-| **3. Choose Input** | Drag & drop a video file **or** paste a YouTube URL |
+| **3. Choose Input** | Drag & drop a video file **or** paste a YouTube URL (Recommended video length: 15-30 mins) |
 | **4. Extract** | Click **Extract Hook Scenes** — Gemini starts analyzing your full video |
 | **5. Processing** | Live progress tracker: Uploading → AI Extraction → QC Review (typically 2–5 min) |
 | **6. Review Scenes** | Browse hook scene cards with full editor metadata per scene |
